@@ -1,0 +1,105 @@
+#+TITLE: web-monad.asd
+
+* Web Monad
+
+This is the reason I implemented monads on common lisp. The
+*web-monad* allows composition of functions in a monad which
+provides:-
+
+1. Output of HTML onto a page
+2. Handling of input /from/ the web page (either via AJAX or not).
+3. Tracking of events assigned to elements on the page
+4. Nesting of HTML content
+
+* Quickstart
+
+The following will get a web-monad web page running.
+
+#+begin_src lisp
+
+(asdf:operate 'asdf:load-op :web-monad)
+(asdf:operate 'asdf:load-op :configuration)
+
+(in-package :cl-user)
+
+(defpackage :web-monad-demo
+  (:use :cl :monads :web-monad :net.aserve :configuration))
+
+(in-package :web-monad-demo)
+
+
+(defun demo-web-page ()
+  (with-web-monad
+    - (mweb-page)
+    quit <- (msubmit "quit" "quit")
+    (when quit
+      (ccl:process-run-function "bye" (lambda () (sleep 1) (ccl:quit))))
+    - (if quit
+          (mhtml (:h2 "(quitting...)"))
+          (unit nil))
+    (mhtml (:h1 "This is a web page served up using the Web Monad!!!"))))
+
+;; First we need to publish a prefix to dispatch to the web monad
+;; I ought to implement this more straightforwardly in the web monad package
+;; clim does its own thing anyway
+(publish-prefix :prefix "/web-monad-demo/"
+                :function (lambda (request entity)
+                            (let ((*m-entity* entity)
+                                  (monad (demo-web-page)))
+
+                              ;; NOT SHOWN: register-monadic-handler and dispatch tables (which you don't have to use)
+                              
+                              (let ((result
+                                     (handler-case
+                                         (web-monad-handle-request monad request)
+                                       (t (c)
+                                         (web-monad-handle-request
+                                          (error-page c)
+                                          request)))))
+
+                                ;; !!! Need to handle display errors too
+                                (render-web-thunk result (web-thunk-event-handlers result)
+                                                  ;; ajax-id
+                                                  :renderer (if (testable-query-value "__AJAX" request)
+                                                                #'web-thunk-ajax-render
+                                                                #'web-thunk-render))))))
+
+(defparameter *port* (configuration-parameter :http/port :type 'integer :default 12000))
+
+;; then fire up the web server
+(start :port *port*)
+  
+  #+end_src
+
+* Overview of Features
+** Binding of event handlers to elements
+#+begin_src lisp
+(with-web-monad
+  - (mbutton "b1" "Click Me!")
+
+  (event-handler "b1" :onclick '(alert "You clicked it!")))
+
+#+end_src
+
+** Handline of events via AJAX
+#+begin_src lisp
+(in-package :web-monad)
+
+(with-web-monad
+  - (mbutton "b2" "Click Me!")
+
+  clicked <- (ajax-event "b2" :onclick)
+
+  - (draw-context "foo"
+                  (if clicked
+                      (mhtml (:h1 "Try clicking the button"))
+                      (mhtml (:h1 "You clicked it!")))
+                  ;; passing redraw t means this element will be redrawn every time an AJAX event is triggered
+                  :redraw t))
+
+#+end_src
+
+/to be continued.../
+
+* Two Phases
+
