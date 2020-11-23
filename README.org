@@ -81,7 +81,7 @@ The following will get a web-monad web page running.
 
 #+end_src
 
-** Handline of events via AJAX
+** Handling of events via AJAX
 #+begin_src lisp
 (in-package :web-monad)
 
@@ -101,5 +101,5 @@ The following will get a web-monad web page running.
 
 /to be continued.../
 
-* Two Phases
+# * Two Phases
 
